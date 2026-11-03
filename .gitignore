@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+
+# Godot
+.godot/
+
+# Exports / builds
+build/
+export/
+*.pck
+
+# Node.js (server/)
+node_modules/
+npm-debug.log*
+
+# Environment / secrets
+.env
+.env.*
