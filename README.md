@@ -41,3 +41,20 @@ pandemoonium/
 5. Pull `main` often to stay up to date.
 
 Do not commit `.DS_Store`, `.godot/`, `node_modules/`, `.env`, or build/export files. The `.gitignore` files handle this, but check `git status` before committing.
+
+
+## Multiplayer prototype (milestone 2)
+
+A runnable multiplayer networking and phone-controller prototype has been added. The system uses a Node.js WebSocket server to connect 2–4 players to the Godot game through browser-based phone controllers.
+
+The prototype currently includes a multiplayer lobby, room codes, ready-up system, joystick movement, player interactions, basic drink preparation, and an impostor sabotage ability.
+
+### Running the Prototype
+
+1. Open the `server/` folder and run `npm install`, followed by `npm start`.
+2. Open `game/project.godot` using Godot 4.7 and press F5.
+3. Create a room in Godot.
+4. Connect at least two phones using `http://YOUR-PC-IP:3000`.
+5. Have both players press Ready, then start the game in Godot.
+
+For additional setup information, see [START_HERE.md](START_HERE.md) and [docs/NETWORK.md](docs/NETWORK.md).
