@@ -84,6 +84,14 @@ function handle(ws,msg) {
       for(const p of room.players.values()) send(p.ws,payload);
       return;
     }
+    if(msg.type==='to_player') {
+      const target=room.players.get(String(msg.playerId||''));
+      const inner=msg.msg;
+      if(!target || !target.ws) return;
+      if(!inner || typeof inner!=='object' || Array.isArray(inner) || typeof inner.type!=='string') return;
+      send(target.ws,inner);
+      return;
+    }
     return;
   }
   const p=room.players.get(ws.playerId);
