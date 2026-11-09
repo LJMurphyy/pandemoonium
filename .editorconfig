@@ -1,0 +1,6 @@
+# Keep GDScript indentation the same as Godot's editor (tabs), whatever editor you use.
+root = true
+
+[*.gd]
+indent_style = tab
+indent_size = 4
