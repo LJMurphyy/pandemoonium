@@ -25,7 +25,7 @@ function leave(ws, holdSlot=false) {
   else if (ws.kind==='player') {
     const p=room.players.get(ws.playerId);
     if (p && p.ws===ws) {
-      p.ws=null; p.lastInput=0;
+      p.ws=null; p.lastInput=0; p.lastAction=false; p.lastSabotage=false;
       send(room.host,{type:'player_left',playerId:p.id});
       if(holdSlot) p.timer=setTimeout(()=>{ if(!p.ws) { room.players.delete(p.id); roster(room); } },RECONNECT_MS);
       else { clearTimeout(p.timer); room.players.delete(p.id); }
@@ -54,7 +54,7 @@ function handle(ws,msg) {
       if(room.players.size>=MAX_PLAYERS) return send(ws,{type:'error',message:'Room full (4 players)'});
       const occupied=new Set([...room.players.values()].map(p=>p.number));
       const number=[1,2,3,4].find(n=>!occupied.has(n));
-      player={id:crypto.randomUUID(), token:crypto.randomBytes(24).toString('hex'), number, name:`Player ${number}`, ready:false, ws:null, timer:null, role:null, lastInput:0};
+      player={id:crypto.randomUUID(), token:crypto.randomBytes(24).toString('hex'), number, name:`Player ${number}`, ready:false, ws:null, timer:null, role:null, lastInput:0, lastAction:false, lastSabotage:false};
       room.players.set(player.id,player);
     }
     player.ws=ws; ws.kind='player'; ws.roomCode=code; ws.playerId=player.id;
@@ -101,8 +101,14 @@ function handle(ws,msg) {
     const x=Number(msg.x),y=Number(msg.y);
     if(!Number.isFinite(x)||!Number.isFinite(y)) return;
     const length=Math.max(1,Math.hypot(x,y));
-    const now=Date.now(); if(now-p.lastInput<12) return; p.lastInput=now;
-    send(room.host,{type:'input',playerId:p.id,x:Math.max(-1,Math.min(1,x/length)),y:Math.max(-1,Math.min(1,y/length)),action:msg.action===true,sabotage:msg.sabotage===true && p.role==='impostor'});
+    const action=msg.action===true;
+    const sabotage=msg.sabotage===true && p.role==='impostor';
+    // Never drop a message where a button changed; only throttle joystick-only updates.
+    const buttonsChanged=action!==p.lastAction || sabotage!==p.lastSabotage;
+    const now=Date.now();
+    if(!buttonsChanged && now-p.lastInput<12) return;
+    p.lastInput=now; p.lastAction=action; p.lastSabotage=sabotage;
+    send(room.host,{type:'input',playerId:p.id,x:Math.max(-1,Math.min(1,x/length)),y:Math.max(-1,Math.min(1,y/length)),action,sabotage});
     return;
   }
   if(msg.type==='leave_room') { leave(ws); send(ws,{type:'left_room'}); return; }
