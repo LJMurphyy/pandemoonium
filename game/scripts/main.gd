@@ -1,6 +1,10 @@
 extends Control
 ## Milestone 2: lobby, 2-4 local phone controllers, movement and playable drink loop.
 const PLAYER_SCRIPT = preload("res://scripts/player.gd")
+## Relay server addresses. The web build (itch.io) uses the online server on Render;
+## running from the Godot editor uses a local server (`npm start` in server/).
+const ONLINE_SERVER := "wss://pandemoonium.onrender.com/ws"
+const LOCAL_SERVER := "ws://127.0.0.1:3000/ws"
 const STARTS := [Vector2(330, 400), Vector2(410, 400), Vector2(490, 400), Vector2(570, 400)]
 const STATIONS := [
     {"name":"INGREDIENTS", "pos":Vector2(145, 305), "color":Color("f2bd66")},
@@ -61,7 +65,7 @@ func _build_ui() -> void:
     var row := HBoxContainer.new()
     lobby.add_child(row)
     address = LineEdit.new()
-    address.text = "ws://127.0.0.1:3000/ws"
+    address.text = ONLINE_SERVER if OS.has_feature("web") else LOCAL_SERVER
     address.custom_minimum_size.x = 285
     row.add_child(address)
     var create := Button.new()
@@ -69,7 +73,7 @@ func _build_ui() -> void:
     create.pressed.connect(_create_room)
     row.add_child(create)
     status_label = Label.new()
-    status_label.text = "Run npm start in server/, then Create Room."
+    status_label.text = "Click Create Room to start." if OS.has_feature("web") else "Run npm start in server/, then Create Room."
     lobby.add_child(status_label)
     room_label = Label.new()
     room_label.text = "ROOM: ------"
@@ -119,7 +123,7 @@ func _network_message(msg: Dictionary) -> void:
     match str(msg.get("type", "")):
         "room_created":
             room = str(msg.get("code", ""))
-            room_label.text = "ROOM: " + room + "   | Phone: http://YOUR-PC-IP:3000"
+            room_label.text = "ROOM: " + room + "   | Phone: " + _phone_url()
             status_label.text = "Room created. Have players join and tap Ready."
         "players":
             roster = msg.get("players", [])
@@ -143,6 +147,15 @@ func _network_message(msg: Dictionary) -> void:
                 p.held_sabotage = msg.get("sabotage", false) == true
         "error":
             status_label.text = "Server: " + str(msg.get("message", "Unknown error"))
+
+## Where phones should go, based on the server the game connected to.
+## wss://host/ws -> host (https), ws://127.0.0.1:3000/ws -> laptop IP hint.
+func _phone_url() -> String:
+    var url := address.text.strip_edges()
+    var host := url.get_slice("://", 1).get_slice("/", 0)
+    if host.begins_with("127.0.0.1") or host.begins_with("localhost"):
+        return "http://YOUR-PC-IP:" + (host.get_slice(":", 1) if ":" in host else "3000")
+    return host if url.begins_with("wss://") else "http://" + host
 
 func _update_roster() -> void:
     var parts: Array[String] = []
