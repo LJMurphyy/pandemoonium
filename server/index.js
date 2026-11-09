@@ -10,18 +10,29 @@ const HOST = process.env.HOST || '0.0.0.0';
 const publicDir = path.resolve(__dirname, 'public');
 const MAX_PLAYERS = 4;
 const RECONNECT_MS = 30000;
+// How long a room waits for its host (laptop) to come back after a disconnect.
+const HOST_RECONNECT_MS = Number(process.env.HOST_RECONNECT_MS || 30000);
 const rooms = new Map();
 const mime = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.svg':'image/svg+xml' };
 const send = (ws, data) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data)); };
 function freshCode() { let code; do { code = crypto.randomBytes(3).toString('hex').toUpperCase(); } while (rooms.has(code)); return code; }
 function members(room) { return [...room.players.values()].sort((a,b)=>a.number-b.number).map(p=>({id:p.id, number:p.number, name:p.name, ready:p.ready, connected:!!p.ws, role:undefined})); }
 function roster(room) { const message = {type:'players', players:members(room), phase:room.phase}; send(room.host,message); for (const p of room.players.values()) send(p.ws,message); }
-function destroyRoom(room) { for (const p of room.players.values()) { clearTimeout(p.timer); send(p.ws,{type:'room_closed'}); if(p.ws) p.ws.roomCode=null; } rooms.delete(room.code); }
+function toPlayers(room, data) { for (const p of room.players.values()) send(p.ws, data); }
+function destroyRoom(room) { clearTimeout(room.hostTimer); for (const p of room.players.values()) { clearTimeout(p.timer); send(p.ws,{type:'room_closed'}); if(p.ws) p.ws.roomCode=null; } rooms.delete(room.code); }
 function leave(ws, holdSlot=false) {
   if (!ws.roomCode) return;
   const room=rooms.get(ws.roomCode);
   if (!room) { ws.roomCode=null; return; }
-  if (ws.kind==='host' && room.host===ws) destroyRoom(room);
+  if (ws.kind==='host' && room.host===ws) {
+    if(!holdSlot) destroyRoom(room);
+    else {
+      // Keep the room for a while so a laptop Wi-Fi blip doesn't end the game.
+      room.host=null;
+      toPlayers(room,{type:'host_disconnected'});
+      room.hostTimer=setTimeout(()=>{ if(!room.host) destroyRoom(room); },HOST_RECONNECT_MS);
+    }
+  }
   else if (ws.kind==='player') {
     const p=room.players.get(ws.playerId);
     if (p && p.ws===ws) {
@@ -39,8 +50,25 @@ function handle(ws,msg) {
   if(!msg || typeof msg!=='object' || Array.isArray(msg)) return send(ws,{type:'error',message:'Invalid message'});
   if(msg.type==='create_room') {
     if(ws.roomCode) return send(ws,{type:'error',message:'Already in a room'});
-    const code=freshCode(); const room={code,host:ws,phase:'lobby',players:new Map()}; rooms.set(code,room);
-    ws.kind='host'; ws.roomCode=code; send(ws,{type:'room_created',code}); roster(room); return;
+    const code=freshCode(); const room={code,host:ws,hostToken:crypto.randomBytes(24).toString('hex'),hostTimer:null,phase:'lobby',players:new Map()}; rooms.set(code,room);
+    ws.kind='host'; ws.roomCode=code; send(ws,{type:'room_created',code,hostToken:room.hostToken}); roster(room); return;
+  }
+  if(msg.type==='rejoin_room') {
+    // Host (laptop) reconnecting to its existing room with the secret hostToken from room_created.
+    if(ws.roomCode) return send(ws,{type:'error',message:'Already in a room'});
+    const code=String(msg.code||'').trim().toUpperCase(); const room=rooms.get(code);
+    const token=String(msg.hostToken||'');
+    if(!room || token.length<32 || token!==room.hostToken) return send(ws,{type:'error',message:'Cannot rejoin room'});
+    clearTimeout(room.hostTimer); room.hostTimer=null;
+    // The server may not have noticed the old laptop connection died yet; the new one takes over.
+    const old=room.host;
+    if(old && old!==ws) { old.roomCode=null; old.kind=null; old.terminate(); }
+    room.host=ws; ws.kind='host'; ws.roomCode=code;
+    send(ws,{type:'room_rejoined',code,phase:room.phase});
+    // Re-announce connected players so the game has a character for anyone who joined while it was away.
+    for(const p of room.players.values()) if(p.ws) send(ws,{type:'player_joined',playerId:p.id,number:p.number,name:p.name,ready:p.ready});
+    toPlayers(room,{type:'host_reconnected'});
+    roster(room); return;
   }
   if(msg.type==='join_room') {
     if(ws.roomCode) return send(ws,{type:'error',message:'Already in a room'});
@@ -58,7 +86,7 @@ function handle(ws,msg) {
       room.players.set(player.id,player);
     }
     player.ws=ws; ws.kind='player'; ws.roomCode=code; ws.playerId=player.id;
-    send(ws,{type:'joined',code,playerId:player.id,number:player.number,token:player.token,phase:room.phase,role:player.role});
+    send(ws,{type:'joined',code,playerId:player.id,number:player.number,token:player.token,phase:room.phase,role:player.role,hostConnected:!!room.host});
     send(room.host,{type:'player_joined',playerId:player.id,number:player.number,name:player.name,ready:player.ready});
     roster(room); return;
   }
