@@ -75,8 +75,15 @@ function handle(ws,msg) {
     const code=String(msg.code||'').trim().toUpperCase(); const room=rooms.get(code);
     if(!room) return send(ws,{type:'error',message:'Room not found'});
     const token=String(msg.token||'');
-    let player=[...room.players.values()].find(p=>p.token===token && token.length>=32 && !p.ws);
-    if(player) { clearTimeout(player.timer); player.timer=null; }
+    let player=[...room.players.values()].find(p=>p.token===token && token.length>=32);
+    if(player) {
+      clearTimeout(player.timer); player.timer=null;
+      // Phones (esp. iPhones) often die without closing the socket, so the server may still think
+      // the old connection is alive. The secret token proves it's the same player: replace the old one.
+      const old=player.ws;
+      if(old && old!==ws) { old.roomCode=null; old.kind=null; old.terminate(); }
+      player.lastInput=0; player.lastAction=false; player.lastSabotage=false;
+    }
     else {
       if(room.phase!=='lobby') return send(ws,{type:'error',message:'Round started. Only reconnecting players can join.'});
       if(room.players.size>=MAX_PLAYERS) return send(ws,{type:'error',message:'Room full (4 players)'});
