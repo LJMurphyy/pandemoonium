@@ -102,6 +102,9 @@ func _create_room() -> void:
     room = ""
     phase = "lobby"
     status_label.text = "Connecting to relay..."
+    if not _phone_url().begins_with("http://YOUR-PC-IP"):
+        # Free Render server sleeps when idle; the first connection can take a while.
+        status_label.text = "Connecting... (if the server was asleep this can take up to a minute)"
     var err := NetworkManager.connect_to_server(address.text.strip_edges())
     if err != OK:
         status_label.text = "Connection error: %s" % error_string(err)
