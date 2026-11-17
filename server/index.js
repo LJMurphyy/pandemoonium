@@ -89,7 +89,7 @@ function handle(ws,msg) {
       if(room.players.size>=MAX_PLAYERS) return send(ws,{type:'error',message:'Room full (4 players)'});
       const occupied=new Set([...room.players.values()].map(p=>p.number));
       const number=[1,2,3,4].find(n=>!occupied.has(n));
-      player={id:crypto.randomUUID(), token:crypto.randomBytes(24).toString('hex'), number, name:`Player ${number}`, ready:false, ws:null, timer:null, role:null, lastInput:0, lastAction:false, lastSabotage:false};
+      player={id:crypto.randomUUID(), token:crypto.randomBytes(24).toString('hex'), number, name:`Player ${number}`, ready:false, ws:null, timer:null, role:null, lastInput:0, lastAction:false, lastSabotage:false, lastMeeting:0};
       room.players.set(player.id,player);
     }
     player.ws=ws; ws.kind='player'; ws.roomCode=code; ws.playerId=player.id;
@@ -132,6 +132,18 @@ function handle(ws,msg) {
   const p=room.players.get(ws.playerId);
   if(!p || p.ws!==ws) return;
   if(msg.type==='ready' && room.phase==='lobby') { p.ready=msg.ready===true; roster(room); return; }
+  // Emergency meetings + voting (#22): the server only passes these to the host; the game decides
+  // what counts (one vote each, only during a meeting, majority, etc.).
+  if((msg.type==='call_meeting' || msg.type==='vote') && room.phase==='playing') {
+    const now=Date.now();
+    if(now-p.lastMeeting<250) return; // ignore button mashing
+    if(msg.type==='call_meeting') { p.lastMeeting=now; send(room.host,{type:'call_meeting',playerId:p.id}); return; }
+    const target=msg.target==null ? null : String(msg.target);
+    if(target!==null && !room.players.has(target)) return; // must be a player in this room, or null = skip
+    p.lastMeeting=now;
+    send(room.host,{type:'vote',playerId:p.id,target});
+    return;
+  }
   if(msg.type==='input' && room.phase==='playing') {
     const x=Number(msg.x),y=Number(msg.y);
     if(!Number.isFinite(x)||!Number.isFinite(y)) return;
