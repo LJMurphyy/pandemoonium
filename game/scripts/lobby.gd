@@ -11,6 +11,7 @@ const ONLINE_SERVER := "wss://pandemoonium.onrender.com/ws"
 const LOCAL_SERVER := "ws://127.0.0.1:3000/ws"
 ## The server holds a dropped phone's slot this long (RECONNECT_MS in server/index.js).
 const RECONNECT_SECS := 30.0
+const MUSIC_DB := -6.0
 
 # Palette from the design's style sheet.
 const BG := Color("24150E")
@@ -142,6 +143,9 @@ var reconnect_pill: Control
 # Lost connection
 var lost_heading: Label
 var lost_text: Label
+# Music
+var music: AudioStreamPlayer
+var music_tween: Tween
 
 
 func _ready() -> void:
@@ -163,6 +167,7 @@ func _ready() -> void:
 	NetworkManager.message_received.connect(_on_message)
 	NetworkManager.disconnected.connect(_on_disconnected)
 	_show("title")
+	_start_music()
 
 
 func _process(_delta: float) -> void:
@@ -234,6 +239,7 @@ func _on_message(msg: Dictionary) -> void:
 			_refresh_room()
 		"game_started":
 			visible = false
+			_fade_music(false)
 		"error":
 			error_text = str(msg.get("message", "Something went wrong."))
 			error_until = _now() + 5.0
@@ -243,6 +249,7 @@ func _on_message(msg: Dictionary) -> void:
 
 func _on_disconnected() -> void:
 	visible = true
+	_fade_music(true)
 	if got_room:
 		_show_lost("Lost connection to server", "The room has closed. Check this laptop's Wi-Fi, then make a new room.")
 	elif server_url.contains("127.0.0.1") or server_url.contains("localhost"):
@@ -397,6 +404,35 @@ func _apply_slot(i: int, state: String) -> void:
 			pill.add_theme_stylebox_override("panel", _pad(_box(PANEL, 18), 12, 0))
 			pill_label.text = "RECONNECTING · %ds" % int(RECONNECT_SECS)
 			pill_label.add_theme_color_override("font_color", RED)
+
+
+## Looping lobby music. Web browsers only allow audio after the first click,
+## so in the itch.io build it starts once someone presses a button.
+func _start_music() -> void:
+	var stream: AudioStreamMP3 = load("res://assets/audio/pandemonium_bgm.mp3")
+	stream.loop = true
+	music = AudioStreamPlayer.new()
+	music.stream = stream
+	music.volume_db = MUSIC_DB
+	add_child(music)
+	music.play()
+
+
+## Fade the music in (lobby showing) or out (round starting).
+func _fade_music(on: bool) -> void:
+	if music == null:
+		return
+	if music_tween:
+		music_tween.kill()
+	music_tween = create_tween()
+	if on:
+		if not music.playing:
+			music.volume_db = -40.0
+			music.play()
+		music_tween.tween_property(music, "volume_db", MUSIC_DB, 1.0)
+	else:
+		music_tween.tween_property(music, "volume_db", -40.0, 1.0)
+		music_tween.tween_callback(music.stop)
 
 
 func _show(which: String) -> void:
