@@ -8,7 +8,7 @@ var held_action := false
 var held_sabotage := false
 var last_action := false
 var last_sabotage := false
-var carried := ""
+var carried = null  # an Item (res://scripts/item.gd) or null
 var impostor := false
 var facing := Vector2.DOWN
 
@@ -47,6 +47,6 @@ func _draw() -> void:
 	draw_circle(Vector2(-7, bob - 3) + facing * 1.5, 1.7, Color("182c3b"))
 	draw_circle(Vector2(7, bob - 3) + facing * 1.5, 1.7, Color("182c3b"))
 	draw_string(ThemeDB.fallback_font, Vector2(-12, -27), "P%d" % player_number, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
-	if not carried.is_empty():
-		draw_circle(Vector2(20, -20), 9, Color("ffe8a3") if carried == "ingredient" else Color("ee8bba"))
-		draw_string(ThemeDB.fallback_font, Vector2(15, -16), "I" if carried == "ingredient" else "D", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.BLACK)
+	if carried != null:
+		draw_circle(Vector2(20, -20), 9, carried.color)
+		draw_string(ThemeDB.fallback_font, Vector2(15, -16), carried.label.left(2), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color.BLACK)

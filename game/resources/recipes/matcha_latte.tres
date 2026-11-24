@@ -1,0 +1,9 @@
+[gd_resource type="Resource" format=3 uid="uid://dohmos5lnrfcc"]
+
+[ext_resource type="Script" uid="uid://dxhw4g4sqsk4j" path="res://scripts/recipe.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+display_name = "Matcha Latte"
+ingredients = Array[String](["matcha", "steamed_milk"])
+color = Color(0.56, 0.75, 0.42, 1)

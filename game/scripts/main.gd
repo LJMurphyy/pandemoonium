@@ -4,20 +4,27 @@ extends Control
 const PLAYER_SCRIPT = preload("res://scripts/player.gd")
 const LOBBY_SCRIPT = preload("res://scripts/lobby.gd")
 const STARTS := [Vector2(330, 400), Vector2(410, 400), Vector2(490, 400), Vector2(570, 400)]
-const STATIONS := [
-	{"name":"INGREDIENTS", "pos":Vector2(145, 305), "color":Color("f2bd66")},
-	{"name":"MIX DRINK", "pos":Vector2(480, 305), "color":Color("81d1da")},
-	{"name":"SERVE", "pos":Vector2(805, 305), "color":Color("b9a2f4")}
+const WORKSTATION_SCRIPT = preload("res://scripts/workstation.gd")
+const ORDER_MANAGER_SCRIPT = preload("res://scripts/order_manager.gd")
+const RECIPES: Array = [
+	preload("res://resources/recipes/latte.tres"),
+	preload("res://resources/recipes/chai_latte.tres"),
+	preload("res://resources/recipes/matcha_latte.tres"),
+	preload("res://resources/recipes/vanilla_coffee.tres"),
 ]
 var lobby: Control
+const TABLES := [
+	{"name":"INGREDIENTS", "rect":Rect2(40, 268, 250, 74)},
+	{"name":"SYRUPS", "rect":Rect2(50, 433, 160, 74)},
+]
+const REACH := 100.0
 var hud_label: Label
 var world: Node2D
 var characters: Dictionary = {}
 var role_map: Dictionary = {}
 var phase := "lobby"
-var score := 0
-var satisfaction := 100
-var seconds_left := 180.0
+var stations: Array = []
+var order_manager: Node
 var sabotage_cooldown := 0.0
 var event_message := ""
 var event_timer := 0.0
@@ -30,6 +37,11 @@ func _ready() -> void:
 	lobby = LOBBY_SCRIPT.new()
 	lobby.connect("create_requested", _reset_round)
 	add_child(lobby)
+	order_manager = ORDER_MANAGER_SCRIPT.new()
+	add_child(order_manager)
+	order_manager.shift_ended.connect(_shift_ended)
+	for r in RECIPES:
+		order_manager.menu.append(r.display_name)
 	set_process(true)
 
 func _build_world() -> void:
@@ -46,11 +58,43 @@ func _build_world() -> void:
 	counter_shape.shape = counter_rect
 	counter.add_child(counter_shape)
 	world.add_child(counter)
+	_build_stations()
 	hud_label = Label.new()
 	hud_label.position = Vector2(20, 660)
 	hud_label.add_theme_font_size_override("font_size", 18)
 	hud_label.text = ""
 	add_child(hud_label)
+
+func _add_station(kind: int, label: String, pos: Vector2, size: Vector2, tint: Color, extra: String = "") -> void:
+	var st := Node2D.new()
+	st.set_script(WORKSTATION_SCRIPT)
+	st.call("setup", kind, label, pos, size, tint)
+	if kind == WORKSTATION_SCRIPT.Kind.SUPPLY:
+		st.supply_id = extra
+	if kind == WORKSTATION_SCRIPT.Kind.MIX:
+		st.recipes = RECIPES
+	world.add_child(st)
+	stations.append(st)
+
+## Layout placeholder; move to Grace's World.tscn spots (#23) when ready.
+func _build_stations() -> void:
+	var K = WORKSTATION_SCRIPT.Kind
+	var dot := Vector2(56, 56)
+	# Ingredients table (see TABLES): coffee, matcha, milk
+	_add_station(K.SUPPLY, "COFFEE", Vector2(85, 305), dot, Color("a9744f"), "coffee")
+	_add_station(K.SUPPLY, "MATCHA", Vector2(165, 305), dot, Color("8fbf6a"), "matcha")
+	_add_station(K.SUPPLY, "MILK", Vector2(245, 305), dot, Color("e8eef2"), "milk")
+	# Syrups table: chai, vanilla
+	_add_station(K.SUPPLY, "CHAI", Vector2(90, 470), dot, Color("c98a4b"), "chai")
+	_add_station(K.SUPPLY, "VANILLA", Vector2(170, 470), dot, Color("f3e5ab"), "vanilla")
+	# The two mixers sit side by side
+	_add_station(K.MIX, "MIX DRINK", Vector2(400, 305), Vector2(130, 80), Color("81d1da"))
+	_add_station(K.MIX, "MIX DRINK", Vector2(535, 305), Vector2(130, 80), Color("81d1da"))
+	_add_station(K.COUNTER, "COUNTER", Vector2(700, 305), Vector2(110, 80), Color("8a9bb0"))
+	_add_station(K.SERVE, "SERVE", Vector2(825, 305), Vector2(90, 80), Color("b9a2f4"))
+	_add_station(K.TRASH, "TRASH", Vector2(905, 305), Vector2(56, 80), Color("6b6f76"))
+	_add_station(K.STEAM, "STEAMER", Vector2(300, 470), Vector2(110, 80), Color("f0c9a0"))
+	_add_station(K.COUNTER, "COUNTER", Vector2(700, 570), Vector2(120, 70), Color("8a9bb0"))
 
 ## A new room is being made, or the connection is gone: clear the old round.
 func _reset_round() -> void:
@@ -82,6 +126,12 @@ func _network_message(msg: Dictionary) -> void:
 				p.held_action = msg.get("action", false) == true
 				p.held_sabotage = msg.get("sabotage", false) == true
 
+## Customers spawn wanting the generic "drink" (customer_manager.gd placeholder).
+## Give each one a real menu item right away so its speech bubble never says "drink".
+func _on_customer_spawned(customer: Node) -> void:
+	if "recipe" in customer and not order_manager.menu.is_empty():
+		customer.recipe = order_manager.menu.pick_random()
+
 func _spawn_player(id: String, number: int) -> void:
 	if id.is_empty() or number < 1 or number > 4 or characters.has(id):
 		return
@@ -94,15 +144,21 @@ func _spawn_player(id: String, number: int) -> void:
 
 func _start_round() -> void:
 	phase = "playing"
-	score = 0
-	satisfaction = 100
-	seconds_left = 180.0
 	sabotage_cooldown = 0.0
 	if customers == null:
 		customers = preload("res://scripts/customer_manager.gd").new()
 		world.add_child(customers)
 		world.move_child(customers, 0) # draw customers under the players
-	customers.start_shift(seconds_left)
+		customers.child_entered_tree.connect(_on_customer_spawned)
+	order_manager.start_shift(180.0)
+	for st in stations:
+		st.state = WORKSTATION_SCRIPT.State.IDLE
+		st.contents.clear()
+		st.recipe = null
+		st.held = null
+		st.items.clear()
+	customers.order_manager = order_manager
+	customers.start_shift(order_manager.shift_length)
 	var ids: Array = characters.keys()
 	if ids.is_empty():
 		return
@@ -113,94 +169,104 @@ func _start_round() -> void:
 		var is_impostor: bool = str(id) == impostor_id
 		role_map[id] = "impostor" if is_impostor else "barista"
 		p.impostor = is_impostor
-		p.carried = ""
+		p.carried = null
 		p.position = STARTS[p.player_number - 1]
 	NetworkManager.send_message({"type":"assign_roles", "roles":role_map})
-	_announce("Round started! Make drinks. One player is the impostor.")
+	announce("Round started! Make drinks. One player is the impostor.")
 
 func _process(delta: float) -> void:
 	if phase != "playing":
 		queue_redraw()
 		return
-	seconds_left -= delta
-	sabotage_cooldown = maxf(0.0, sabotage_cooldown - delta)
 	event_timer = maxf(0.0, event_timer - delta)
+	if not order_manager.paused:
+		sabotage_cooldown = maxf(0.0, sabotage_cooldown - delta)
+		for st in stations:
+			st.tick(delta)
 	for id in characters.keys():
 		var p = characters[id]
-		if p.held_action and not p.last_action:
+		if p.held_action and not p.last_action and not order_manager.paused:
 			_interact(p)
-		if p.held_sabotage and not p.last_sabotage and p.impostor:
+		if p.held_sabotage and not p.last_sabotage and p.impostor and not order_manager.paused:
 			_sabotage(p)
 		p.last_action = p.held_action
 		p.last_sabotage = p.held_sabotage
-	hud_label.text = "Drinks served: %d   |   Satisfaction: %d%%   |   Time: %ds   |   %s" % [score, satisfaction, maxi(0, ceili(seconds_left)), event_message if event_timer > 0 else ""]
-	if seconds_left <= 0.0 or satisfaction <= 0:
-		_finish_round()
+	hud_label.text = "Drinks served: %d   |   Satisfaction: %d%%   |   Time: %ds   |   %s" % [order_manager.served, order_manager.satisfaction, maxi(0, ceili(order_manager.time_left)), event_message if event_timer > 0 else ""]
 	queue_redraw()
 
-func _nearest_station(at: Vector2) -> int:
-	var best := -1
-	var distance := 100.0
-	for i in range(STATIONS.size()):
-		var d: float = at.distance_to(STATIONS[i]["pos"])
+func _nearest_station(at: Vector2):
+	var best = null
+	var distance := REACH
+	for st in stations:
+		var d: float = at.distance_to(st.position)
 		if d < distance:
-			best = i
+			best = st
 			distance = d
 	return best
 
 func _interact(p) -> void:
-	var station := _nearest_station(p.position)
-	if station == -1:
-		_announce("P%d: Move closer to a station." % p.player_number)
+	var station = _nearest_station(p.position)
+	if station == null:
+		announce("P%d: Move closer to a station." % p.player_number)
 		return
-	match station:
-		0:
-			if p.carried.is_empty():
-				p.carried = "ingredient"
-				_announce("P%d picked up ingredients." % p.player_number)
-		1:
-			if p.carried == "ingredient":
-				p.carried = "drink"
-				_announce("P%d mixed a drink!" % p.player_number)
-		2:
-			if p.carried == "drink":
-				customers.serve(p.carried) # temporary until OrderManager (#30) handles serving
-				p.carried = ""
-				score += 1
-				satisfaction = mini(100, satisfaction + 4)
-				_announce("P%d served a drink! +1" % p.player_number)
+	station.interact(p, self)
+
+## Called by the SERVE station when a player hands in a drink.
+func serve_drink(p, drink) -> void:
+	if order_manager.serve(drink.recipe):
+		announce("P%d served a %s! Satisfaction up." % [p.player_number, drink.label])
+	else:
+		announce("P%d served a drink nobody ordered! Satisfaction down." % p.player_number)
 
 func _sabotage(p) -> void:
 	if sabotage_cooldown > 0.0:
-		_announce("Sabotage recharging: %ds" % ceili(sabotage_cooldown))
+		announce("Sabotage recharging: %ds" % ceili(sabotage_cooldown))
 		return
-	if _nearest_station(p.position) == -1:
-		_announce("Impostor: get near a station to sabotage.")
+	if _nearest_station(p.position) == null:
+		announce("Impostor: get near a station to sabotage.")
 		return
 	sabotage_cooldown = 18.0
-	satisfaction = maxi(0, satisfaction - 20)
-	_announce("A station was sabotaged! Satisfaction -20.")
+	order_manager.change_satisfaction(-20)
+	announce("A station was sabotaged! Satisfaction -20.")
 
-func _announce(message: String) -> void:
+func announce(message: String) -> void:
 	event_message = message
 	event_timer = 4.0
 	NetworkManager.send_message({"type":"game_event", "event":message})
 
-func _finish_round() -> void:
+func _shift_ended(won: bool) -> void:
 	phase = "finished"
 	customers.stop_shift()
-	var ending := "IMPOSTOR WINS" if satisfaction <= 0 else "BARISTAS WIN"
-	hud_label.text = "%s — %d drinks served. Restart Godot to create another room." % [ending, score]
+	var ending := "BARISTAS WIN" if won else "IMPOSTOR WINS"
+	hud_label.text = "%s — %d drinks served. Restart Godot to create another room." % [ending, order_manager.served]
 	NetworkManager.send_message({"type":"game_event", "event":ending})
 
 func _draw() -> void:
 	var bg := Color("182c3b")
 	draw_rect(Rect2(0, 205, 960, 440), bg)
 	draw_rect(Rect2(380, 506, 200, 38), Color("4b6681"))
-	for s in STATIONS:
-		var pos: Vector2 = s["pos"]
-		var rect := Rect2(pos - Vector2(74, 45), Vector2(148, 90))
-		draw_rect(rect, s["color"])
-		draw_rect(rect, Color("203144"), false, 3.0)
-		draw_string(ThemeDB.fallback_font, pos + Vector2(-64, 5), str(s["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("1c2636"))
-	draw_string(ThemeDB.fallback_font, Vector2(25, 625), "Move: joystick   |   Interact near a station: ingredients -> mix -> serve", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
+	for t in TABLES:
+		draw_rect(t["rect"], Color("6a4f3a"))
+		draw_rect(t["rect"], Color("2f2118"), false, 3.0)
+		draw_string(ThemeDB.fallback_font, t["rect"].position + Vector2(6, -6), t["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
+	_draw_orders()
+	_draw_satisfaction_bar()
+	draw_string(ThemeDB.fallback_font, Vector2(25, 625), "Move: joystick   |   Interact: combine 2 ingredients in the mixer -> serve the ticket", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
+
+func _draw_satisfaction_bar() -> void:
+	var f := clampf(order_manager.satisfaction / 100.0, 0.0, 1.0)
+	var bar := Rect2(20, 692, 300, 16)
+	draw_rect(bar, Color("0f1a24"))
+	draw_rect(Rect2(bar.position + Vector2(2, 2), Vector2((bar.size.x - 4) * f, bar.size.y - 4)), Color("e06666").lerp(Color("7bd389"), f))
+	draw_rect(bar, Color("203144"), false, 2.0)
+	draw_string(ThemeDB.fallback_font, bar.position + Vector2(bar.size.x + 10, 13), "SATISFACTION %d%%" % order_manager.satisfaction, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
+
+func _draw_orders() -> void:
+	var x := 20.0
+	for order in order_manager.orders:
+		var frac: float = clampf(order["left"] / order["patience"], 0.0, 1.0)
+		var rect := Rect2(x, 215, 110, 46)
+		draw_rect(rect, Color("f4ecd8"))
+		draw_rect(Rect2(x, 255, 110.0 * frac, 6), Color("e0524d") if frac < 0.3 else Color("5bbf6a"))
+		draw_string(ThemeDB.fallback_font, Vector2(x + 8, 240), str(order["recipe"]), HORIZONTAL_ALIGNMENT_LEFT, 96, 16, Color("1c2636"))
+		x += 118.0

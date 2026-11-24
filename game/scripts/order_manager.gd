@@ -1,0 +1,98 @@
+extends Node
+## Open orders, satisfaction meter and shift timer (#30).
+## Orders come from customers (#27) via add_order(); until then main.gd spawns test orders.
+signal order_added(order)
+signal order_completed(customer)
+signal order_expired(customer)
+signal satisfaction_changed(value)
+signal shift_ended(won: bool)
+
+const MAX_SATISFACTION := 100
+const ON_TIME_BONUS := 6
+const WRONG_PENALTY := 10
+const EXPIRED_PENALTY := 5
+## Same threshold customer.gd uses for its red, frowning "upset" look: once a customer is
+## this impatient, the overall satisfaction meter drains steadily until they are served.
+const UPSET_FRACTION := 0.3
+const UPSET_DRAIN_PER_SECOND := 1.0
+
+var orders: Array = []   # each: {recipe, patience, left, customer}
+var satisfaction := MAX_SATISFACTION
+var shift_length := 180.0
+var time_left := 180.0
+var served := 0
+var paused := false      # emergency meetings (#22) set this to freeze everything
+var running := false
+var _drain := 0.0
+
+func start_shift(length: float = 180.0) -> void:
+	orders.clear()
+	shift_length = length
+	time_left = length
+	satisfaction = MAX_SATISFACTION
+	served = 0
+	_drain = 0.0
+	paused = false
+	running = true
+	satisfaction_changed.emit(satisfaction)
+
+func set_paused(value: bool) -> void:
+	paused = value
+
+## Customers (customer_manager.gd) still order the generic "drink" until there is a menu;
+## the order manager turns that into a random item from `menu` (recipe names).
+var menu: Array = []
+
+func add_order(recipe, patience_seconds: float, customer = null) -> void:
+	if str(recipe) == "drink" and not menu.is_empty():
+		recipe = menu.pick_random()
+		# Make the customer's speech bubble (customer.gd `recipe`) show the real drink.
+		if customer != null and "recipe" in customer:
+			customer.recipe = recipe
+	var order := {"recipe": recipe, "patience": patience_seconds, "left": patience_seconds, "customer": customer}
+	orders.append(order)
+	order_added.emit(order)
+
+## Orders carry the recipe NAME (customers order by name, see customer_manager.gd).
+## Returns true if the drink matched an open order (oldest matching first).
+func serve(drink_recipe: Resource) -> bool:
+	for order in orders:
+		if str(order["recipe"]) == drink_recipe.display_name:
+			orders.erase(order)
+			served += 1
+			change_satisfaction(ON_TIME_BONUS)
+			order_completed.emit(order["customer"])
+			return true
+	change_satisfaction(-WRONG_PENALTY)
+	return false
+
+func change_satisfaction(amount: int) -> void:
+	satisfaction = clampi(satisfaction + amount, 0, MAX_SATISFACTION)
+	satisfaction_changed.emit(satisfaction)
+	if satisfaction <= 0:
+		_end(false)
+
+func _process(delta: float) -> void:
+	if not running or paused:
+		return
+	time_left -= delta
+	for order in orders.duplicate():
+		order["left"] -= delta
+		if order["left"] > 0.0 and order["left"] < order["patience"] * UPSET_FRACTION:
+			_drain += UPSET_DRAIN_PER_SECOND * delta
+		if order["left"] <= 0.0:
+			orders.erase(order)
+			change_satisfaction(-EXPIRED_PENALTY)
+			order_expired.emit(order["customer"])
+	if _drain >= 1.0:
+		var points := int(_drain)
+		_drain -= points
+		change_satisfaction(-points)
+	if running and time_left <= 0.0:
+		_end(true)
+
+func _end(won: bool) -> void:
+	if not running:
+		return
+	running = false
+	shift_ended.emit(won)
