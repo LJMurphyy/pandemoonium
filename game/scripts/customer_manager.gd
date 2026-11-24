@@ -19,7 +19,7 @@ const LINE_SPOTS := [Vector2(915, 405), Vector2(915, 460), Vector2(915, 515), Ve
 ## walks past empty spots; when someone leaves, everyone nearer the register shuffles over.
 const PICKUP_SPOTS := [Vector2(690, 405), Vector2(745, 405), Vector2(800, 405), Vector2(855, 405)]
 ## Placeholder until Sruti's recipes (#29).
-const RECIPES := ["drink"]
+const RECIPES := ["Latte", "Chai Latte", "Matcha Latte", "Vanilla Coffee"]
 const TINTS := [Color("f4d6b0"), Color("c9e4ca"), Color("d7c9f2"), Color("f6c6c6"), Color("cfe3f5")]
 
 ## --- Spawning: random gaps, so customers can pile up fast or trickle in slowly ---

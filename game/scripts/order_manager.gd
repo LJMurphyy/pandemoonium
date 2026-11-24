@@ -33,15 +33,16 @@ func start_shift(length: float = 180.0) -> void:
 func set_paused(value: bool) -> void:
 	paused = value
 
-func add_order(recipe: Resource, patience_seconds: float, customer = null) -> void:
+func add_order(recipe, patience_seconds: float, customer = null) -> void:
 	var order := {"recipe": recipe, "patience": patience_seconds, "left": patience_seconds, "customer": customer}
 	orders.append(order)
 	order_added.emit(order)
 
+## Orders carry the recipe NAME (customers order by name, see customer_manager.gd).
 ## Returns true if the drink matched an open order (oldest matching first).
 func serve(drink_recipe: Resource) -> bool:
 	for order in orders:
-		if order["recipe"] == drink_recipe:
+		if str(order["recipe"]) == drink_recipe.display_name:
 			orders.erase(order)
 			served += 1
 			change_satisfaction(ON_TIME_BONUS)

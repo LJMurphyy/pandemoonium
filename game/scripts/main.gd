@@ -13,6 +13,10 @@ const RECIPES: Array = [
 	preload("res://resources/recipes/vanilla_coffee.tres"),
 ]
 var lobby: Control
+const TABLES := [
+	{"name":"INGREDIENTS", "rect":Rect2(40, 268, 250, 74)},
+	{"name":"SYRUPS", "rect":Rect2(50, 433, 160, 74)},
+]
 const REACH := 100.0
 var hud_label: Label
 var world: Node2D
@@ -73,16 +77,22 @@ func _add_station(kind: int, label: String, pos: Vector2, size: Vector2, tint: C
 ## Layout placeholder; move to Grace's World.tscn spots (#23) when ready.
 func _build_stations() -> void:
 	var K = WORKSTATION_SCRIPT.Kind
-	_add_station(K.SUPPLY, "COFFEE", Vector2(90, 305), Vector2(110, 80), Color("a9744f"), "coffee")
-	_add_station(K.SUPPLY, "MILK", Vector2(215, 305), Vector2(110, 80), Color("e8eef2"), "milk")
+	var dot := Vector2(56, 56)
+	# Ingredients table (see TABLES): coffee, matcha, milk
+	_add_station(K.SUPPLY, "COFFEE", Vector2(85, 305), dot, Color("a9744f"), "coffee")
+	_add_station(K.SUPPLY, "MATCHA", Vector2(165, 305), dot, Color("8fbf6a"), "matcha")
+	_add_station(K.SUPPLY, "MILK", Vector2(245, 305), dot, Color("e8eef2"), "milk")
+	# Syrups table: chai, vanilla
+	_add_station(K.SUPPLY, "CHAI", Vector2(90, 470), dot, Color("c98a4b"), "chai")
+	_add_station(K.SUPPLY, "VANILLA", Vector2(170, 470), dot, Color("f3e5ab"), "vanilla")
+	# The two mixers sit side by side
 	_add_station(K.MIX, "MIX DRINK", Vector2(400, 305), Vector2(130, 80), Color("81d1da"))
-	_add_station(K.COUNTER, "COUNTER", Vector2(565, 305), Vector2(120, 80), Color("8a9bb0"))
-	_add_station(K.SERVE, "SERVE", Vector2(740, 305), Vector2(120, 80), Color("b9a2f4"))
-	_add_station(K.TRASH, "TRASH", Vector2(880, 305), Vector2(80, 80), Color("6b6f76"))
-	_add_station(K.SUPPLY, "CHAI", Vector2(90, 470), Vector2(100, 80), Color("c98a4b"), "chai")
-	_add_station(K.SUPPLY, "VANILLA", Vector2(205, 470), Vector2(100, 80), Color("f3e5ab"), "vanilla")
-	_add_station(K.SUPPLY, "MATCHA", Vector2(320, 470), Vector2(100, 80), Color("8fbf6a"), "matcha")
-	_add_station(K.COUNTER, "COUNTER", Vector2(800, 470), Vector2(120, 70), Color("8a9bb0"))
+	_add_station(K.MIX, "MIX DRINK", Vector2(535, 305), Vector2(130, 80), Color("81d1da"))
+	_add_station(K.COUNTER, "COUNTER", Vector2(700, 305), Vector2(110, 80), Color("8a9bb0"))
+	_add_station(K.SERVE, "SERVE", Vector2(825, 305), Vector2(90, 80), Color("b9a2f4"))
+	_add_station(K.TRASH, "TRASH", Vector2(905, 305), Vector2(56, 80), Color("6b6f76"))
+	_add_station(K.STEAM, "STEAMER", Vector2(300, 470), Vector2(110, 80), Color("f0c9a0"))
+	_add_station(K.COUNTER, "COUNTER", Vector2(700, 570), Vector2(120, 70), Color("8a9bb0"))
 
 ## A new room is being made, or the connection is gone: clear the old round.
 func _reset_round() -> void:
@@ -137,6 +147,7 @@ func _start_round() -> void:
 		st.contents.clear()
 		st.recipe = null
 		st.held = null
+		st.items.clear()
 	customers.order_manager = order_manager
 	customers.start_shift(order_manager.shift_length)
 	var ids: Array = characters.keys()
@@ -225,6 +236,10 @@ func _draw() -> void:
 	var bg := Color("182c3b")
 	draw_rect(Rect2(0, 205, 960, 440), bg)
 	draw_rect(Rect2(380, 506, 200, 38), Color("4b6681"))
+	for t in TABLES:
+		draw_rect(t["rect"], Color("6a4f3a"))
+		draw_rect(t["rect"], Color("2f2118"), false, 3.0)
+		draw_string(ThemeDB.fallback_font, t["rect"].position + Vector2(6, -6), t["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
 	_draw_orders()
 	draw_string(ThemeDB.fallback_font, Vector2(25, 625), "Move: joystick   |   Interact: combine 2 ingredients in the mixer -> serve the ticket", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
 
@@ -235,5 +250,5 @@ func _draw_orders() -> void:
 		var rect := Rect2(x, 215, 110, 46)
 		draw_rect(rect, Color("f4ecd8"))
 		draw_rect(Rect2(x, 255, 110.0 * frac, 6), Color("e0524d") if frac < 0.3 else Color("5bbf6a"))
-		draw_string(ThemeDB.fallback_font, Vector2(x + 8, 240), order["recipe"].display_name, HORIZONTAL_ALIGNMENT_LEFT, 96, 16, Color("1c2636"))
+		draw_string(ThemeDB.fallback_font, Vector2(x + 8, 240), str(order["recipe"]), HORIZONTAL_ALIGNMENT_LEFT, 96, 16, Color("1c2636"))
 		x += 118.0
