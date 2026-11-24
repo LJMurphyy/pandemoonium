@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/recipe.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+display_name = "Chai Latte"
+ingredients = Array[String](["chai", "milk"])
+work_seconds = 3.0
+patience_seconds = 45.0
+color = Color(0.78, 0.54, 0.29, 1)
