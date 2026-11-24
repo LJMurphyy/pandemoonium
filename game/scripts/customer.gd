@@ -5,6 +5,8 @@ extends Node2D
 enum State { IN_LINE, ORDERING, WAITING, LEAVING }
 const WALK_SPEED := 130.0
 const FADE_SPEED := 1.6 # leaving customers fade out over about 0.6s
+const BUBBLE_FONT_SIZE := 12
+const BUBBLE_MAX_WIDTH := 52.0 # pickup spots are 55 px apart, so bubbles never touch
 var state := State.IN_LINE
 var recipe := ""
 var patience_total := 1.0
@@ -69,12 +71,45 @@ func _draw() -> void:
 	else:
 		draw_arc(Vector2(0, bob + 3), 5, PI * 0.15, PI * 0.85, 8, ink, 2.0)
 	if state == State.ORDERING or state == State.WAITING:
-		# Speech bubble with what they ordered.
-		var w := 10.0 + 7.5 * recipe.length()
-		draw_rect(Rect2(-w / 2.0, -52, w, 18), Color.WHITE)
-		draw_string(ThemeDB.fallback_font, Vector2(-w / 2.0 + 5, -38), recipe, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, ink)
+		_draw_bubble(ink)
+
+## Speech bubble with what they ordered, with their patience bar along the bottom while they
+## wait. One word per line keeps long names ("Vanilla Coffee") narrower than the gap between
+## pickup spots, so neighbours' bubbles never cover each other.
+func _draw_bubble(ink: Color) -> void:
+	var words := recipe.split(" ", false)
+	if words.is_empty():
+		return
+	var font := ThemeDB.fallback_font
+	var size := bubble_font_size()
+	var w := bubble_width()
+	var line := font.get_ascent(size) + 1.0 # tight spacing: names are only a word or two
+	var bar := 6.0 if state == State.WAITING else 0.0
+	var h := 4.0 + line * words.size() + bar
+	var top := -20.0 - h # sits just above the head
+	draw_rect(Rect2(-w / 2.0, top, w, h), Color.WHITE)
+	draw_rect(Rect2(-w / 2.0, top, w, h), ink, false, 1.0)
+	for i in words.size():
+		draw_string(font, Vector2(-w / 2.0, top + 1.0 + line * (i + 1)), words[i], HORIZONTAL_ALIGNMENT_CENTER, w, size, ink)
 	if state == State.WAITING:
 		# Patience bar: green when fresh, red when about to give up.
 		var f := patience_left / patience_total
-		draw_rect(Rect2(-18, -30, 36, 6), ink)
-		draw_rect(Rect2(-17, -29, 34.0 * f, 4), Color("e06666").lerp(Color("7bd389"), f))
+		draw_rect(Rect2(-w / 2.0 + 2.0, top + h - 5.0, (w - 4.0) * f, 3.0), Color("e06666").lerp(Color("7bd389"), f))
+
+## Biggest font size (up to BUBBLE_FONT_SIZE) that keeps every word of the order inside BUBBLE_MAX_WIDTH.
+func bubble_font_size() -> int:
+	var words := recipe.split(" ", false)
+	var size := BUBBLE_FONT_SIZE
+	while size > 8 and _widest(words, size) + 8.0 > BUBBLE_MAX_WIDTH:
+		size -= 1
+	return size
+
+## Width of the speech bubble in pixels.
+func bubble_width() -> float:
+	return _widest(recipe.split(" ", false), bubble_font_size()) + 8.0
+
+func _widest(words: PackedStringArray, size: int) -> float:
+	var widest := 0.0
+	for word in words:
+		widest = maxf(widest, ThemeDB.fallback_font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x)
+	return widest
