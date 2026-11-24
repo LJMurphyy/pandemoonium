@@ -188,6 +188,16 @@ func _run() -> void:
 	check(m.line.is_empty() and m.waiting.is_empty(), "creating a new room clears the customers")
 	m.free()
 
+	print("Speech bubbles")
+	var gap: float = Manager.PICKUP_SPOTS[1].x - Manager.PICKUP_SPOTS[0].x
+	var talker = Customer.new()
+	var widest := 0.0
+	for drink in ["Latte", "Chai Latte", "Matcha Latte", "Vanilla Coffee", "Strawberry Matcha Latte"]:
+		talker.recipe = drink
+		widest = maxf(widest, talker.bubble_width())
+	check(widest < gap, "even long drink names fit between pickup spots (widest bubble %.0fpx, spots %.0fpx apart)" % [widest, gap])
+	talker.free()
+
 	print("With Sruti's OrderManager")
 	var src := GDScript.new()
 	src.source_code = "extends Node\nsignal order_completed(customer)\nsignal order_expired(customer)\nvar calls := []\nfunc add_order(recipe, patience, customer):\n\tcalls.append([recipe, patience, customer])\n"
