@@ -10,7 +10,11 @@ signal shift_ended(won: bool)
 const MAX_SATISFACTION := 100
 const ON_TIME_BONUS := 6
 const WRONG_PENALTY := 10
-const EXPIRED_PENALTY := 15
+const EXPIRED_PENALTY := 5
+## Same threshold customer.gd uses for its red, frowning "upset" look: once a customer is
+## this impatient, the overall satisfaction meter drains steadily until they are served.
+const UPSET_FRACTION := 0.3
+const UPSET_DRAIN_PER_SECOND := 1.0
 
 var orders: Array = []   # each: {recipe, patience, left, customer}
 var satisfaction := MAX_SATISFACTION
@@ -19,6 +23,7 @@ var time_left := 180.0
 var served := 0
 var paused := false      # emergency meetings (#22) set this to freeze everything
 var running := false
+var _drain := 0.0
 
 func start_shift(length: float = 180.0) -> void:
 	orders.clear()
@@ -26,6 +31,7 @@ func start_shift(length: float = 180.0) -> void:
 	time_left = length
 	satisfaction = MAX_SATISFACTION
 	served = 0
+	_drain = 0.0
 	paused = false
 	running = true
 	satisfaction_changed.emit(satisfaction)
@@ -40,6 +46,9 @@ var menu: Array = []
 func add_order(recipe, patience_seconds: float, customer = null) -> void:
 	if str(recipe) == "drink" and not menu.is_empty():
 		recipe = menu.pick_random()
+		# Make the customer's speech bubble (customer.gd `recipe`) show the real drink.
+		if customer != null and "recipe" in customer:
+			customer.recipe = recipe
 	var order := {"recipe": recipe, "patience": patience_seconds, "left": patience_seconds, "customer": customer}
 	orders.append(order)
 	order_added.emit(order)
@@ -69,10 +78,16 @@ func _process(delta: float) -> void:
 	time_left -= delta
 	for order in orders.duplicate():
 		order["left"] -= delta
+		if order["left"] > 0.0 and order["left"] < order["patience"] * UPSET_FRACTION:
+			_drain += UPSET_DRAIN_PER_SECOND * delta
 		if order["left"] <= 0.0:
 			orders.erase(order)
 			change_satisfaction(-EXPIRED_PENALTY)
 			order_expired.emit(order["customer"])
+	if _drain >= 1.0:
+		var points := int(_drain)
+		_drain -= points
+		change_satisfaction(-points)
 	if running and time_left <= 0.0:
 		_end(true)
 

@@ -126,6 +126,12 @@ func _network_message(msg: Dictionary) -> void:
 				p.held_action = msg.get("action", false) == true
 				p.held_sabotage = msg.get("sabotage", false) == true
 
+## Customers spawn wanting the generic "drink" (customer_manager.gd placeholder).
+## Give each one a real menu item right away so its speech bubble never says "drink".
+func _on_customer_spawned(customer: Node) -> void:
+	if "recipe" in customer and not order_manager.menu.is_empty():
+		customer.recipe = order_manager.menu.pick_random()
+
 func _spawn_player(id: String, number: int) -> void:
 	if id.is_empty() or number < 1 or number > 4 or characters.has(id):
 		return
@@ -143,6 +149,7 @@ func _start_round() -> void:
 		customers = preload("res://scripts/customer_manager.gd").new()
 		world.add_child(customers)
 		world.move_child(customers, 0) # draw customers under the players
+		customers.child_entered_tree.connect(_on_customer_spawned)
 	order_manager.start_shift(180.0)
 	for st in stations:
 		st.state = WORKSTATION_SCRIPT.State.IDLE
@@ -243,7 +250,16 @@ func _draw() -> void:
 		draw_rect(t["rect"], Color("2f2118"), false, 3.0)
 		draw_string(ThemeDB.fallback_font, t["rect"].position + Vector2(6, -6), t["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
 	_draw_orders()
+	_draw_satisfaction_bar()
 	draw_string(ThemeDB.fallback_font, Vector2(25, 625), "Move: joystick   |   Interact: combine 2 ingredients in the mixer -> serve the ticket", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
+
+func _draw_satisfaction_bar() -> void:
+	var f := clampf(order_manager.satisfaction / 100.0, 0.0, 1.0)
+	var bar := Rect2(20, 692, 300, 16)
+	draw_rect(bar, Color("0f1a24"))
+	draw_rect(Rect2(bar.position + Vector2(2, 2), Vector2((bar.size.x - 4) * f, bar.size.y - 4)), Color("e06666").lerp(Color("7bd389"), f))
+	draw_rect(bar, Color("203144"), false, 2.0)
+	draw_string(ThemeDB.fallback_font, bar.position + Vector2(bar.size.x + 10, 13), "SATISFACTION %d%%" % order_manager.satisfaction, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
 
 func _draw_orders() -> void:
 	var x := 20.0
