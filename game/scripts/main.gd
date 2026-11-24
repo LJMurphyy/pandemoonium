@@ -18,6 +18,7 @@ var phase := "lobby"
 var score := 0
 var satisfaction := 100
 var seconds_left := 180.0
+const SABOTAGE_COOLDOWN := 18.0
 var sabotage_cooldown := 0.0
 var event_message := ""
 var event_timer := 0.0
@@ -130,7 +131,7 @@ func _process(delta: float) -> void:
 		if p.held_action and not p.last_action:
 			_interact(p)
 		if p.held_sabotage and not p.last_sabotage and p.impostor:
-			_sabotage(p)
+			_sabotage(str(id), p)
 		p.last_action = p.held_action
 		p.last_sabotage = p.held_sabotage
 	hud_label.text = "Drinks served: %d   |   Satisfaction: %d%%   |   Time: %ds   |   %s" % [score, satisfaction, maxi(0, ceili(seconds_left)), event_message if event_timer > 0 else ""]
@@ -170,16 +171,22 @@ func _interact(p) -> void:
 				satisfaction = mini(100, satisfaction + 4)
 				_announce("P%d served a drink! +1" % p.player_number)
 
-func _sabotage(p) -> void:
+## Impostor-only feedback stays private (no public "recharging" hint that would give them away):
+## the impostor's phone gets the cooldown and shows it on the Sabotage button.
+func _sabotage(id: String, p) -> void:
 	if sabotage_cooldown > 0.0:
-		_announce("Sabotage recharging: %ds" % ceili(sabotage_cooldown))
+		_send_cooldown(id)
 		return
 	if _nearest_station(p.position) == -1:
-		_announce("Impostor: get near a station to sabotage.")
 		return
-	sabotage_cooldown = 18.0
+	sabotage_cooldown = SABOTAGE_COOLDOWN
 	satisfaction = maxi(0, satisfaction - 20)
+	_send_cooldown(id)
 	_announce("A station was sabotaged! Satisfaction -20.")
+
+func _send_cooldown(id: String) -> void:
+	NetworkManager.send_message({"type":"to_player", "playerId":id,
+		"msg":{"type":"sabotage_cooldown", "seconds":sabotage_cooldown, "total":SABOTAGE_COOLDOWN}})
 
 func _announce(message: String) -> void:
 	event_message = message

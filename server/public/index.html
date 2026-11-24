@@ -42,7 +42,9 @@
 <!-- 2/3. In the room: lobby, host reconnecting, playing -->
 <section id="controller" class="screen room" hidden>
 <div class="topbar">
-<button id="leaveBtn" type="button" class="leave"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" stroke="#FFF6E8" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Leave</button>
+<button id="leaveBtn" type="button" class="leave" aria-label="Leave room"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" stroke="#FFF6E8" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="leaveText">Leave</span></button>
+<div class="miniMe"><img id="miniCow" src="/img/cow_p1.png" alt="" width="28" height="31"><span id="miniLabel">P1</span></div>
+<div id="roleLabel" class="roleBanner"></div>
 <div class="roomChip">ROOM <span id="roomLabel"></span></div>
 </div>
 
@@ -70,12 +72,17 @@
 </div>
 
 <div id="playPanel" class="grow play" hidden>
-<p id="roleLabel" class="role"></p>
 <div class="controls">
-<div id="joystick" aria-label="Virtual joystick" role="application"><div id="stick"></div></div>
-<div class="actionColumn"><button id="actionBtn" type="button">INTERACT</button><button id="sabotageBtn" type="button" hidden>SABOTAGE</button></div>
+<!-- Left half: touch anywhere and the joystick appears under your thumb -->
+<div id="stickZone" class="stickZone" role="group" aria-label="Movement: drag anywhere on this side">
+<div id="joystick" class="joystick" aria-hidden="true"><div id="stick"></div></div>
 </div>
-<p class="footnote">Drag the joystick to move. Tap INTERACT near a station.</p>
+<!-- Right half: big Interact (most used); small Sabotage up in the corner, well apart -->
+<div id="buttonZone" class="buttonZone noSabotage">
+<button id="sabotageBtn" type="button" class="sabotageHit" hidden aria-label="Sabotage"><span class="sabotageFace">SABOTAGE</span></button>
+<button id="actionBtn" type="button" class="actionHit" aria-label="Interact"><span class="actionFace">INTERACT</span></button>
+</div>
+</div>
 </div>
 
 <p id="status" class="status" role="status"></p>
@@ -83,6 +90,15 @@
 </section>
 
 </main>
+
+<!-- Shown mid-round when the phone is held upright -->
+<div id="rotateHint" class="rotateHint" role="dialog" aria-modal="true" aria-labelledby="rotateTitle" hidden>
+<svg class="rotateArt" width="120" height="120" viewBox="0 0 120 120" aria-hidden="true"><rect x="38" y="14" width="44" height="80" rx="9" fill="#3A2418" stroke="#FFF6E8" stroke-width="6"/><circle cx="60" cy="82" r="4" fill="#FFF6E8"/><path d="M20 80 a42 42 0 0 0 30 30" stroke="#F6D9A8" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M42 106 L50 110 L46 101" stroke="#F6D9A8" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<h1 id="rotateTitle">Turn your phone sideways</h1>
+<p>The controller fits best horizontally. If it won't rotate, check that rotation lock is off.</p>
+<button id="uprightBtn" type="button" class="ghost">Play upright instead</button>
+</div>
+
 <script src="/controller.js"></script>
 </body>
 </html>
