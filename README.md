@@ -51,10 +51,11 @@ The prototype currently includes a multiplayer lobby, room codes, ready-up syste
 
 ### Running the Prototype
 
-1. Open the `server/` folder and run `npm install`, followed by `npm start`.
-2. Open `game/project.godot` using Godot 4.7 and press F5.
-3. Create a room in Godot.
-4. Connect at least two phones using `http://YOUR-PC-IP:3000`.
-5. Have both players press Ready, then start the game in Godot.
+1. Open `game/project.godot` using Godot 4.7 and press F5. (Or play the web build on itch.io.)
+2. Click **Create Room**. The game connects to the online server automatically. If it was asleep, the first connection can take up to a minute.
+3. On at least two phones, go to **pandemoonium.onrender.com** and enter the room code. Any Wi-Fi or cellular works.
+4. Have everyone tap Ready, then start the game in Godot.
 
-For additional setup information, see [START_HERE.md](START_HERE.md) and [docs/NETWORK.md](docs/NETWORK.md).
+Changing the server? See [Local Testing](docs/NETWORK.md#local-testing) to run it on your laptop instead.
+
+How the game, server and phones talk to each other (messages, rooms, reconnecting, deployment) is in [docs/NETWORK.md](docs/NETWORK.md).
