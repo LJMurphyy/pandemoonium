@@ -21,6 +21,7 @@ var seconds_left := 180.0
 var sabotage_cooldown := 0.0
 var event_message := ""
 var event_timer := 0.0
+var customers: Node2D # customer_manager.gd (#27), created when the first round starts
 
 func _ready() -> void:
 	NetworkManager.message_received.connect(_network_message)
@@ -97,6 +98,11 @@ func _start_round() -> void:
 	satisfaction = 100
 	seconds_left = 180.0
 	sabotage_cooldown = 0.0
+	if customers == null:
+		customers = preload("res://scripts/customer_manager.gd").new()
+		world.add_child(customers)
+		world.move_child(customers, 0) # draw customers under the players
+	customers.start_shift(seconds_left)
 	var ids: Array = characters.keys()
 	if ids.is_empty():
 		return
@@ -158,6 +164,7 @@ func _interact(p) -> void:
 				_announce("P%d mixed a drink!" % p.player_number)
 		2:
 			if p.carried == "drink":
+				customers.serve(p.carried) # temporary until OrderManager (#30) handles serving
 				p.carried = ""
 				score += 1
 				satisfaction = mini(100, satisfaction + 4)
@@ -181,6 +188,7 @@ func _announce(message: String) -> void:
 
 func _finish_round() -> void:
 	phase = "finished"
+	customers.stop_shift()
 	var ending := "IMPOSTOR WINS" if satisfaction <= 0 else "BARISTAS WIN"
 	hud_label.text = "%s — %d drinks served. Restart Godot to create another room." % [ending, score]
 	NetworkManager.send_message({"type":"game_event", "event":ending})
