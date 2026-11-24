@@ -33,7 +33,13 @@ func start_shift(length: float = 180.0) -> void:
 func set_paused(value: bool) -> void:
 	paused = value
 
+## Customers (customer_manager.gd) still order the generic "drink" until there is a menu;
+## the order manager turns that into a random item from `menu` (recipe names).
+var menu: Array = []
+
 func add_order(recipe, patience_seconds: float, customer = null) -> void:
+	if str(recipe) == "drink" and not menu.is_empty():
+		recipe = menu.pick_random()
 	var order := {"recipe": recipe, "patience": patience_seconds, "left": patience_seconds, "customer": customer}
 	orders.append(order)
 	order_added.emit(order)

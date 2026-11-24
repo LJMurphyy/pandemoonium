@@ -40,6 +40,8 @@ func _ready() -> void:
 	order_manager = ORDER_MANAGER_SCRIPT.new()
 	add_child(order_manager)
 	order_manager.shift_ended.connect(_shift_ended)
+	for r in RECIPES:
+		order_manager.menu.append(r.display_name)
 	set_process(true)
 
 func _build_world() -> void:
