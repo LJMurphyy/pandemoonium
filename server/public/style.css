@@ -1,4 +1,4 @@
-/* PandeMOOnium phone controller. Follows the "PandeMOOnium Lobby" design (phone boards). */
+/* PandeMOOnium phone controller. Follows the lobby design; the round is played sideways. */
 @font-face{font-family:Fredoka;src:url(/fonts/Fredoka.ttf) format('truetype');font-weight:300 700;font-display:swap}
 @font-face{font-family:'Lilita One';src:url(/fonts/LilitaOne-Regular.ttf) format('truetype');font-display:swap}
 @font-face{font-family:'JetBrains Mono';src:url(/fonts/JetBrainsMono.ttf) format('truetype');font-weight:100 800;font-display:swap}
@@ -8,21 +8,24 @@
   --muted:#B89A82;--ledge:#C9A57A;--ink:#120A06;--red:#FF6B5B;
   --me:#ffbd69; /* this phone's player colour, set from controller.js */
   color-scheme:dark;font-family:Fredoka,system-ui,sans-serif;font-weight:500;color:var(--cream);background:var(--bg);
-  touch-action:manipulation;-webkit-tap-highlight-color:transparent
+  -webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%
 }
-*{box-sizing:border-box}
-html,body{margin:0;min-height:100%;overflow-x:hidden}
+/* No double-tap or pinch zoom anywhere. iOS ignores user-scalable=no, and touch-action
+   only applies to the element it is set on, so it goes on everything. */
+*{box-sizing:border-box;touch-action:manipulation}
+html,body{margin:0;min-height:100%;overflow-x:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input{-webkit-user-select:text;user-select:text}
 body{background:var(--bg)}
 [hidden]{display:none!important}
 .blob{position:fixed;background:var(--blob);pointer-events:none;z-index:0}
 .b1{right:-60px;top:-40px;width:200px;height:160px;border-radius:58% 42% 63% 37%/45% 55% 45% 55%}
 .b2{left:-70px;bottom:80px;width:200px;height:220px;border-radius:40% 60% 35% 65%/55% 40% 60% 45%}
 main{position:relative;z-index:1;max-width:440px;min-height:100vh;min-height:100dvh;margin:0 auto;display:flex}
-.screen{flex:1;display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;
-  padding:max(20px,env(safe-area-inset-top)) 24px max(28px,env(safe-area-inset-bottom))}
+.screen{flex:1;min-width:0;display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;
+  padding:max(20px,env(safe-area-inset-top)) max(24px,env(safe-area-inset-right)) max(28px,env(safe-area-inset-bottom)) max(24px,env(safe-area-inset-left))}
 
-button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}
-button:focus-visible{outline:4px solid var(--latte);outline-offset:4px}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:4px solid var(--latte);outline-offset:4px}
 .caps{font-size:16px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--latte)}
 .logo{font-family:'Lilita One',sans-serif;font-size:44px;line-height:1;text-align:center;filter:drop-shadow(0 4px 0 var(--ink))}
 .logo.small{font-size:36px}
@@ -30,47 +33,49 @@ button:focus-visible{outline:4px solid var(--latte);outline-offset:4px}
 .footnote{margin:0;text-align:center;font-size:16px;line-height:1.4;color:var(--muted)}
 .footnote span{color:var(--latte);font-weight:600}
 .mono{font-family:'JetBrains Mono',monospace;font-weight:800;color:var(--cream)}
-
-/* Big chunky buttons with the coffee "ledge" under them */
 .big{width:100%;height:80px;border-radius:22px;font-family:'Lilita One',sans-serif;font-size:36px}
 .primary{background:var(--cream);color:var(--bg);box-shadow:0 8px 0 var(--ledge)}
 .primary:active{transform:translateY(6px);box-shadow:0 2px 0 var(--ledge)}
 .primary:disabled{background:var(--blob);color:var(--muted);border:4px solid var(--line);box-shadow:none;transform:none;cursor:not-allowed}
+.ghost{height:56px;padding:0 24px;border-radius:18px;border:3px solid var(--line);font-size:18px;font-weight:600}
+.ghost:active{background:rgba(255,246,232,.08)}
 
-/* 1. Join */
+/* Join */
 .join{padding-top:max(56px,env(safe-area-inset-top))}
 .tagline{margin:10px 0 0;text-align:center;font-size:18px;font-weight:600;color:var(--latte)}
 .joinForm{margin-top:44px;display:flex;flex-direction:column;gap:12px}
-#roomCode{width:100%;height:96px;border:0;border-radius:20px;background:var(--cream);color:var(--bg);box-shadow:0 6px 0 var(--ledge);
+#roomCode{width:100%;height:96px;border:0;border-radius:20px;background:var(--cream);color:var(--bg);
   font:800 44px 'JetBrains Mono',monospace;letter-spacing:.22em;text-indent:.22em;text-align:center;text-transform:uppercase}
 #roomCode::placeholder{color:var(--ledge)}
-#roomCode:focus{outline:4px solid var(--latte);outline-offset:4px}
 #joinBtn{margin-top:14px}
 .joinStatus{min-height:1.4em;margin:8px 0 0;text-align:center;font-size:17px;font-weight:600;color:var(--latte)}
 
-/* 4. Can't join */
-.error{padding-top:max(56px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));align-items:center}
+/* Can't join */
+.error{padding-top:max(56px,env(safe-area-inset-top));align-items:center}
 .errorBody{flex:1;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
 .errorBody h1{margin:28px 0 0;font:400 44px/1.05 'Lilita One',sans-serif}
 .errorBody p{margin:14px 0 0;font-size:20px;line-height:1.4;color:var(--latte)}
 .cows{display:flex;align-items:flex-end;gap:12px}
-.cows img,#cow{image-rendering:pixelated;image-rendering:crisp-edges}
+.cows img,#cow,#miniCow{image-rendering:pixelated;image-rendering:crisp-edges}
 
-/* 2/3. In the room */
-.room{gap:18px}
-.topbar{height:56px;display:flex;align-items:center;justify-content:space-between}
+/* In the room */
+.room{gap:16px}
+.topbar{height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .leave{height:56px;padding:0 18px 0 12px;border-radius:18px;border:3px solid var(--line);display:flex;align-items:center;gap:6px;font-size:18px;font-weight:600}
 .leave:active{background:rgba(255,246,232,.08)}
-.roomChip{height:40px;padding:0 14px;border-radius:20px;background:var(--panel);display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--muted)}
-.roomChip span{font:800 17px 'JetBrains Mono',monospace;color:var(--cream)}
+.roomChip{height:40px;padding:0 14px;border-radius:20px;background:var(--panel);display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--muted);white-space:nowrap}
+.roomChip #roomLabel{font:800 17px 'JetBrains Mono',monospace;color:var(--cream)}
+.miniMe,.roleBanner{display:none}
 .you{height:128px;flex:none;border-radius:28px;background:var(--me);padding:0 22px;display:flex;align-items:center;gap:18px;color:var(--bg)}
 .you>div{display:flex;flex-direction:column;gap:2px;min-width:0}
 .you .caps{font-size:15px;letter-spacing:.1em;color:var(--bg)}
 .you strong{font:400 52px/1 'Lilita One',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .grow{flex:1;display:flex;flex-direction:column;min-height:0}
 .dimmed .dimmable{opacity:.5}
+.status{margin:0;min-height:1.3em;text-align:center;font-size:16px;font-weight:600;line-height:1.35;color:var(--latte)}
+.status:empty{display:none}
 
-.readyBtn{flex:1;min-height:240px;width:100%;border-radius:36px;border:6px solid var(--me);background:var(--panel);color:var(--cream);
+.readyBtn{flex:1;min-height:220px;width:100%;border-radius:36px;border:6px solid var(--me);background:var(--panel);color:var(--cream);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;box-shadow:0 10px 0 var(--ink)}
 .readyBtn:active{transform:translateY(6px);box-shadow:0 4px 0 var(--ink)}
 .readyBtn svg{color:var(--me)}
@@ -89,30 +94,72 @@ button:focus-visible{outline:4px solid var(--latte);outline-offset:4px}
 .hostTitle{font:400 40px/1.05 'Lilita One',sans-serif}
 .hostText{font-size:19px;font-weight:600;line-height:1.35;color:var(--latte)}
 
-.status{margin:0;min-height:1.3em;text-align:center;font-size:16px;font-weight:600;color:var(--latte)}
-.status:empty{display:none}
 .roster{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding-bottom:6px}
 .chip{height:64px;border-radius:18px;display:flex;align-items:center;justify-content:center;gap:6px;font:400 24px 'Lilita One',sans-serif}
 .chip.ready{background:var(--c);color:var(--bg)}
 .chip.joined{background:var(--panel);border:3px solid var(--c);color:var(--c)}
 .chip.empty{background:var(--blob);border:3px solid var(--panel);color:var(--muted)}
 .chip.disc{background:var(--blob);border:3px solid var(--line);color:var(--muted)}
-.chip.you{outline:3px solid var(--cream);outline-offset:3px}
+.chip.you{box-shadow:inset 0 0 0 3px var(--cream)} /* ring drawn inside, so every chip stays the same size */
 
-/* Playing */
-.play{gap:14px}
-.role{margin:0;text-align:center;font:400 26px/1.15 'Lilita One',sans-serif}
-.controls{flex:1;display:flex;justify-content:space-between;align-items:center;gap:16px}
-#joystick{width:190px;height:190px;border-radius:50%;background:var(--panel);border:4px solid var(--line);position:relative;touch-action:none;flex-shrink:0;user-select:none;-webkit-user-select:none}
-#stick{width:76px;height:76px;border-radius:50%;background:var(--me);border:4px solid var(--ink);position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
-.actionColumn{display:flex;flex-direction:column;gap:16px;align-items:center;flex:1}
-#actionBtn{width:120px;height:120px;border-radius:50%;background:var(--cream);color:var(--bg);font:400 20px 'Lilita One',sans-serif;box-shadow:0 8px 0 var(--ledge);touch-action:none}
-#sabotageBtn{width:120px;height:58px;border-radius:18px;background:var(--red);color:var(--bg);font:400 19px 'Lilita One',sans-serif;box-shadow:0 6px 0 var(--ink);touch-action:none}
-#actionBtn.pressed,#sabotageBtn.pressed{transform:translateY(6px);box-shadow:none}
 
-@media(max-width:380px){
-  #joystick{width:155px;height:155px}#stick{width:64px;height:64px}
-  #actionBtn{width:96px;height:96px;font-size:17px}#sabotageBtn{width:96px}
+/* Playing: only the controls, the role and the room */
+.room.playing .you,.room.playing .roster{display:none}
+.room.playing .miniMe{display:flex;align-items:center;gap:6px;height:40px;padding:0 12px 0 8px;border-radius:20px;background:var(--me);color:var(--bg);font:400 20px 'Lilita One',sans-serif}
+.room.playing .roleBanner{display:block;flex:1;min-width:0;text-align:center;font:400 22px/1.1 'Lilita One',sans-serif;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.roleBanner.impostor{color:var(--red)}
+.room.playing .leave{height:44px;font-size:16px}
+.room.playing .leave{width:48px;height:48px;padding:0;justify-content:center;border-radius:14px}
+.room.playing .leaveText{display:none}
+
+/* Controls: left half moves, right half acts */
+.controls{flex:1;display:flex;gap:12px;min-height:0}
+.stickZone{flex:1 1 0;min-width:0;position:relative;border-radius:28px;background:rgba(255,246,232,.035);border:2px dashed rgba(184,154,130,.25);touch-action:none;overflow:hidden}
+.joystick{--size:min(54vh,42vw,220px);position:absolute;left:50%;top:55%;width:var(--size);height:var(--size);transform:translate(-50%,-50%);
+  border-radius:50%;background:var(--panel);border:4px solid var(--line);opacity:.5;pointer-events:none;transition:opacity .2s,left .2s,top .2s}
+.joystick.active{opacity:1;transition:none}
+#stick{width:40%;height:40%;border-radius:50%;background:var(--me);border:4px solid var(--ink);position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
+/* Sabotage and Interact: same-size circles side by side, half a button apart.
+   The tap areas fill their columns, so they are much bigger than the circles you see. */
+.buttonZone{--btn:min(36vh,17vw,150px);flex:1 1 0;min-width:0;display:grid;grid-template-columns:1fr calc(var(--btn) / 2) 1.3fr;position:relative}
+.sabotageHit,.actionHit{display:flex;justify-content:center;border-radius:28px;touch-action:none;min-height:0;min-width:0}
+.sabotageHit{grid-column:1;align-items:flex-start;padding-top:4vh}
+.actionHit{grid-column:3;align-items:flex-end;padding-bottom:4vh}
+.buttonZone.noSabotage .actionHit{grid-column:1 / -1;align-items:center;justify-content:flex-end;padding:0 5vw 0 0}
+.actionFace,.sabotageFace{display:flex;align-items:center;justify-content:center;width:var(--btn);aspect-ratio:1;border-radius:50%;color:var(--bg);font:400 20px 'Lilita One',sans-serif}
+.actionFace{background:var(--cream);box-shadow:0 8px 0 var(--ledge)}
+.sabotageFace{position:relative;overflow:hidden;background:var(--red);box-shadow:0 8px 0 var(--ink);transition:opacity .2s}
+/* Recharging: faded, with a clock-style shade that sweeps away as it becomes available. */
+.sabotageHit.cooling{pointer-events:none}
+.sabotageHit.cooling .sabotageFace{opacity:.45;box-shadow:none}
+.sabotageHit.cooling .sabotageFace::after{content:'';position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(rgba(18,10,6,.6) calc(var(--cool,0) * 360deg),transparent 0)}
+@media (orientation:portrait){ /* "Play upright instead": stack them */
+  .buttonZone{--btn:min(30vw,130px);grid-template-columns:1fr;grid-template-rows:1fr calc(var(--btn) / 2) 1.3fr}
+  .sabotageHit{grid-row:1;align-items:center;padding:0}
+  .actionHit{grid-column:1;grid-row:3;align-items:center;padding:0}
+  .buttonZone.noSabotage .actionHit{grid-row:1 / -1;justify-content:center;padding:0}
+  .actionFace,.sabotageFace{font-size:17px}
+}
+.actionHit.pressed .actionFace,.sabotageHit.pressed .sabotageFace{transform:translateY(6px);box-shadow:none}
+
+/* Sideways phone: only the round goes horizontal; the lobby keeps its upright layout. */
+@media (orientation:landscape){
+  body.playing main{max-width:none}
+  .room.playing{gap:10px;padding:max(10px,env(safe-area-inset-top)) max(24px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(24px,env(safe-area-inset-left))}
+  .room.playing .topbar{height:44px}
+  .room.playing .status{font-size:15px}
+}
+@media (max-width:380px) and (orientation:portrait){
   .you strong{font-size:44px}.readyTitle{font-size:46px}
 }
-@media(max-height:700px){.you{height:104px}.join,.error{padding-top:28px}.joinForm{margin-top:28px}}
+
+/* "Turn your phone sideways" while a round is on */
+.rotateHint{position:fixed;inset:0;z-index:10;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px;text-align:center}
+.rotateHint h1{margin:8px 0 0;font:400 40px/1.05 'Lilita One',sans-serif}
+.rotateHint p{margin:0;font-size:19px;line-height:1.4;color:var(--latte);max-width:320px}
+.rotateHint .ghost{margin-top:12px}
+@media (prefers-reduced-motion:no-preference){
+  .rotateArt{animation:tilt 2.4s ease-in-out infinite;transform-origin:50% 50%}
+  @keyframes tilt{0%,30%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
+}
