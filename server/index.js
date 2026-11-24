@@ -13,7 +13,7 @@ const RECONNECT_MS = 30000;
 // How long a room waits for its host (laptop) to come back after a disconnect.
 const HOST_RECONNECT_MS = Number(process.env.HOST_RECONNECT_MS || 30000);
 const rooms = new Map();
-const mime = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.svg':'image/svg+xml' };
+const mime = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.svg':'image/svg+xml', '.png':'image/png', '.ttf':'font/ttf', '.txt':'text/plain; charset=utf-8' };
 const send = (ws, data) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data)); };
 function freshCode() { let code; do { code = crypto.randomBytes(3).toString('hex').toUpperCase(); } while (rooms.has(code)); return code; }
 function members(room) { return [...room.players.values()].sort((a,b)=>a.number-b.number).map(p=>({id:p.id, number:p.number, name:p.name, ready:p.ready, connected:!!p.ws, role:undefined})); }

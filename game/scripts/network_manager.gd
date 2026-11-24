@@ -30,6 +30,15 @@ func _open() -> int:
 	connecting = err == OK
 	return err
 
+## Close on purpose (e.g. Cancel in the lobby): no retrying and no `disconnected` signal.
+func leave() -> void:
+	retrying = false
+	active = false
+	connecting = false
+	room_code = ""
+	host_token = ""
+	socket.close()
+
 func send_message(data: Dictionary) -> void:
 	if socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
 		socket.send_text(JSON.stringify(data))
