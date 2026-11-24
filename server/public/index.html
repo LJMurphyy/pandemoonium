@@ -1,6 +1,88 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta name="theme-color" content="#162338"><title>PandeMOOnium Controller</title><link rel="stylesheet" href="/style.css"></head>
-<body><main><header><h1>🐮 PandeMOOnium</h1><p>Multiplayer phone controller</p></header>
-<section id="joinPanel" class="panel"><label for="roomCode">Room code</label><input id="roomCode" maxlength="6" placeholder="ABC123" autocomplete="off" autocapitalize="characters"><button id="joinBtn">Join game</button><p id="joinStatus" role="status">Use the same Wi-Fi as the game host.</p></section>
-<section id="controller" class="panel" hidden><div class="topline"><strong id="playerLabel">Player</strong><span id="roomLabel"></span></div><p id="status" role="status">Connected</p><div id="roster" class="roster"></div><div id="readyPanel"><button id="readyBtn">I'm Ready</button><p class="tip">The host can start when 2–4 players are ready.</p></div>
-<div id="playPanel" hidden><div class="controls"><div id="joystick" aria-label="Virtual joystick" role="application"><div id="stick"></div></div><div class="actionColumn"><button id="actionBtn">INTERACT</button><button id="sabotageBtn" hidden>SABOTAGE</button></div></div><p class="tip">Drag the joystick to move in any direction. Tap INTERACT near a station.</p></div>
-<button id="leaveBtn" class="secondary">Leave room</button></section></main><script src="/controller.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#24150E">
+<title>PandeMOOnium Controller</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="blob b1" aria-hidden="true"></div>
+<div class="blob b2" aria-hidden="true"></div>
+<main>
+
+<!-- 1. Join -->
+<section id="joinPanel" class="screen join">
+<div class="logo">PandeMOOnium</div>
+<p class="tagline">Grab an apron, barista.</p>
+<form id="joinForm" class="joinForm" novalidate>
+<label for="roomCode" class="caps">Room code</label>
+<input id="roomCode" maxlength="6" placeholder="3FA9C1" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false">
+<button id="joinBtn" type="submit" class="big primary" disabled>Join</button>
+<p id="joinStatus" class="joinStatus" role="status"></p>
+</form>
+<div class="spacer"></div>
+<p class="footnote">Hosting? Open the game on the laptop and tap <span>Create Room</span>.</p>
+</section>
+
+<!-- 4. Can't join (room not found / full / round started) -->
+<section id="errorPanel" class="screen error" hidden>
+<div class="logo small">PandeMOOnium</div>
+<div class="errorBody" role="alert">
+<svg id="artNotFound" class="art" width="132" height="132" viewBox="0 0 132 132" aria-hidden="true"><circle cx="56" cy="56" r="38" fill="#3A2418" stroke="#FFF6E8" stroke-width="10"/><path d="M84 84 L114 114" stroke="#FFF6E8" stroke-width="14" stroke-linecap="round"/><path d="M45 46 a11 11 0 1 1 15 10 c-4 2 -4 5 -4 8" stroke="#FF6B5B" stroke-width="7" fill="none" stroke-linecap="round"/><circle cx="56" cy="76" r="4.5" fill="#FF6B5B"/></svg>
+<div id="artFull" class="art cows" aria-hidden="true"><img src="/img/cow_p1.png" alt="" width="56" height="62"><img src="/img/cow_p2.png" alt="" width="64" height="66"><img src="/img/cow_p3.png" alt="" width="52" height="58"><img src="/img/cow_p4.png" alt="" width="56" height="62"></div>
+<svg id="artStarted" class="art" width="132" height="132" viewBox="0 0 132 132" aria-hidden="true"><rect x="52" y="8" width="28" height="14" rx="5" fill="#FFF6E8"/><circle cx="66" cy="74" r="48" fill="#3A2418" stroke="#FFF6E8" stroke-width="10"/><path d="M66 74 L66 44" stroke="#FFF6E8" stroke-width="9" stroke-linecap="round"/><path d="M66 74 L86 88" stroke="#FFBD69" stroke-width="9" stroke-linecap="round"/><circle cx="66" cy="74" r="7" fill="#FFF6E8"/></svg>
+<h1 id="errorTitle"></h1>
+<p id="errorText"></p>
+</div>
+<button id="retryBtn" type="button" class="big primary">Try another code</button>
+</section>
+
+<!-- 2/3. In the room: lobby, host reconnecting, playing -->
+<section id="controller" class="screen room" hidden>
+<div class="topbar">
+<button id="leaveBtn" type="button" class="leave"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" stroke="#FFF6E8" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Leave</button>
+<div class="roomChip">ROOM <span id="roomLabel"></span></div>
+</div>
+
+<div class="you dimmable">
+<img id="cow" src="/img/cow_p1.png" alt="" width="84" height="93">
+<div><span class="caps">You are</span><strong id="playerLabel">Player</strong></div>
+</div>
+
+<div id="readyPanel" class="grow">
+<button id="readyBtn" type="button" class="readyBtn" aria-pressed="false">
+<svg class="ring" width="84" height="84" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="34" fill="none" stroke="currentColor" stroke-width="8"/></svg>
+<svg class="tick" width="84" height="84" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="38" fill="#24150E"/><path d="M24 43 L37 56 L60 30" stroke="currentColor" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<span id="readyTitle" class="readyTitle">I'm Ready</span>
+<span id="readySub" class="readySub">Tap when you're set</span>
+</button>
+</div>
+
+<div id="hostPanel" class="grow hostPanel" role="status" hidden>
+<div class="timer">
+<svg width="112" height="112" viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" fill="none" stroke="#2E1B12" stroke-width="10"/><circle id="hostRing" cx="56" cy="56" r="46" fill="none" stroke="#FFF6E8" stroke-width="10" stroke-linecap="round" stroke-dasharray="289 289" transform="rotate(-90 56 56)"/></svg>
+<span id="hostSecs">30</span>
+</div>
+<span class="hostTitle">Host reconnecting…</span>
+<span class="hostText">Whoops! Something's wrong with the host. Please give them a quick minute!</span>
+</div>
+
+<div id="playPanel" class="grow play" hidden>
+<p id="roleLabel" class="role"></p>
+<div class="controls">
+<div id="joystick" aria-label="Virtual joystick" role="application"><div id="stick"></div></div>
+<div class="actionColumn"><button id="actionBtn" type="button">INTERACT</button><button id="sabotageBtn" type="button" hidden>SABOTAGE</button></div>
+</div>
+<p class="footnote">Drag the joystick to move. Tap INTERACT near a station.</p>
+</div>
+
+<p id="status" class="status" role="status"></p>
+<div id="roster" class="roster dimmable" role="list" aria-label="Players in this room"></div>
+</section>
+
+</main>
+<script src="/controller.js"></script>
+</body>
+</html>

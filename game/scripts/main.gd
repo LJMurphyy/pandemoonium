@@ -1,28 +1,19 @@
 extends Control
-## Milestone 2: lobby, 2-4 local phone controllers, movement and playable drink loop.
+## Milestone 2: 2-4 local phone controllers, movement and playable drink loop.
+## The lobby screens (create room, roster, start) live in lobby.gd; this script runs the round.
 const PLAYER_SCRIPT = preload("res://scripts/player.gd")
-## Relay server addresses. The web build (itch.io) uses the online server on Render;
-## running from the Godot editor uses a local server (`npm start` in server/).
-const ONLINE_SERVER := "wss://pandemoonium.onrender.com/ws"
-const LOCAL_SERVER := "ws://127.0.0.1:3000/ws"
+const LOBBY_SCRIPT = preload("res://scripts/lobby.gd")
 const STARTS := [Vector2(330, 400), Vector2(410, 400), Vector2(490, 400), Vector2(570, 400)]
 const STATIONS := [
 	{"name":"INGREDIENTS", "pos":Vector2(145, 305), "color":Color("f2bd66")},
 	{"name":"MIX DRINK", "pos":Vector2(480, 305), "color":Color("81d1da")},
 	{"name":"SERVE", "pos":Vector2(805, 305), "color":Color("b9a2f4")}
 ]
-var lobby: VBoxContainer
-var address: LineEdit
-var status_label: Label
-var room_label: Label
-var roster_label: Label
-var start_button: Button
+var lobby: Control
 var hud_label: Label
 var world: Node2D
 var characters: Dictionary = {}
-var roster: Array = []
 var role_map: Dictionary = {}
-var room := ""
 var phase := "lobby"
 var score := 0
 var satisfaction := 100
@@ -30,14 +21,18 @@ var seconds_left := 180.0
 var sabotage_cooldown := 0.0
 var event_message := ""
 var event_timer := 0.0
+var customers: Node2D # customer_manager.gd (#27), created when the first round starts
 
 func _ready() -> void:
 	NetworkManager.message_received.connect(_network_message)
-	NetworkManager.disconnected.connect(_disconnected)
-	_build_ui()
+	NetworkManager.disconnected.connect(_reset_round)
+	_build_world()
+	lobby = LOBBY_SCRIPT.new()
+	lobby.connect("create_requested", _reset_round)
+	add_child(lobby)
 	set_process(true)
 
-func _build_ui() -> void:
+func _build_world() -> void:
 	world = Node2D.new()
 	add_child(world)
 	# Collision demo: a solid service counter between the stations and walking area.
@@ -51,86 +46,24 @@ func _build_ui() -> void:
 	counter_shape.shape = counter_rect
 	counter.add_child(counter_shape)
 	world.add_child(counter)
-	var header := PanelContainer.new()
-	header.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	header.custom_minimum_size.y = 205
-	add_child(header)
-	lobby = VBoxContainer.new()
-	lobby.add_theme_constant_override("separation", 7)
-	header.add_child(lobby)
-	var title := Label.new()
-	title.text = "PandeMOOnium | Multiplayer prototype"
-	title.add_theme_font_size_override("font_size", 23)
-	lobby.add_child(title)
-	var row := HBoxContainer.new()
-	lobby.add_child(row)
-	address = LineEdit.new()
-	address.text = ONLINE_SERVER if OS.has_feature("web") else LOCAL_SERVER
-	address.custom_minimum_size.x = 285
-	row.add_child(address)
-	var create := Button.new()
-	create.text = "Create Room"
-	create.pressed.connect(_create_room)
-	row.add_child(create)
-	status_label = Label.new()
-	status_label.text = "Click Create Room to start." if OS.has_feature("web") else "Run npm start in server/, then Create Room."
-	lobby.add_child(status_label)
-	room_label = Label.new()
-	room_label.text = "ROOM: ------"
-	room_label.add_theme_font_size_override("font_size", 23)
-	lobby.add_child(room_label)
-	roster_label = Label.new()
-	roster_label.text = "Waiting for players (2-4 required)."
-	lobby.add_child(roster_label)
-	start_button = Button.new()
-	start_button.text = "Start Game (everyone must be ready)"
-	start_button.disabled = true
-	start_button.pressed.connect(func(): NetworkManager.send_message({"type":"start_game"}))
-	lobby.add_child(start_button)
 	hud_label = Label.new()
 	hud_label.position = Vector2(20, 660)
 	hud_label.add_theme_font_size_override("font_size", 18)
 	hud_label.text = ""
 	add_child(hud_label)
 
-func _create_room() -> void:
+## A new room is being made, or the connection is gone: clear the old round.
+func _reset_round() -> void:
 	for player in characters.values():
 		player.queue_free()
 	characters.clear()
-	roster.clear()
-	role_map.clear()
-	room = ""
-	phase = "lobby"
-	status_label.text = "Connecting to relay..."
-	if not _phone_url().begins_with("http://YOUR-PC-IP"):
-		# Free Render server sleeps when idle; the first connection can take a while.
-		status_label.text = "Connecting... (if the server was asleep this can take up to a minute)"
-	var err := NetworkManager.connect_to_server(address.text.strip_edges())
-	if err != OK:
-		status_label.text = "Connection error: %s" % error_string(err)
-
-func _disconnected() -> void:
-	status_label.text = "Disconnected. Check server and create a new room."
-	room_label.text = "ROOM: ------"
-	room = ""
-	start_button.disabled = true
-	for player in characters.values():
-		player.queue_free()
-	characters.clear()
-	roster.clear()
 	role_map.clear()
 	phase = "lobby"
+	hud_label.text = ""
 	queue_redraw()
 
 func _network_message(msg: Dictionary) -> void:
 	match str(msg.get("type", "")):
-		"room_created":
-			room = str(msg.get("code", ""))
-			room_label.text = "ROOM: " + room + "   | Phone: " + _phone_url()
-			status_label.text = "Room created. Have players join and tap Ready."
-		"players":
-			roster = msg.get("players", [])
-			_update_roster()
 		"player_joined":
 			var id := str(msg.get("playerId", ""))
 			_spawn_player(id, int(msg.get("number", 1)))
@@ -148,29 +81,6 @@ func _network_message(msg: Dictionary) -> void:
 				p.direction = Vector2(float(msg.get("x", 0.0)), float(msg.get("y", 0.0))).limit_length(1.0)
 				p.held_action = msg.get("action", false) == true
 				p.held_sabotage = msg.get("sabotage", false) == true
-		"error":
-			status_label.text = "Server: " + str(msg.get("message", "Unknown error"))
-
-## Where phones should go, based on the server the game connected to.
-## wss://host/ws -> host (https), ws://127.0.0.1:3000/ws -> laptop IP hint.
-func _phone_url() -> String:
-	var url := address.text.strip_edges()
-	var host := url.get_slice("://", 1).get_slice("/", 0)
-	if host.begins_with("127.0.0.1") or host.begins_with("localhost"):
-		return "http://YOUR-PC-IP:" + (host.get_slice(":", 1) if ":" in host else "3000")
-	return host if url.begins_with("wss://") else "http://" + host
-
-func _update_roster() -> void:
-	var parts: Array[String] = []
-	var ready_count := 0
-	for entry in roster:
-		var connected: bool = entry.get("connected", false)
-		var ready: bool = entry.get("ready", false)
-		if ready and connected:
-			ready_count += 1
-		parts.append("P%d %s %s" % [int(entry.get("number", 0)), "ONLINE" if connected else "OFFLINE", "READY" if ready else "WAITING"])
-	roster_label.text = "  |  ".join(parts) if not parts.is_empty() else "Waiting for players (2-4 required)."
-	start_button.disabled = phase != "lobby" or roster.size() < 2 or ready_count != roster.size()
 
 func _spawn_player(id: String, number: int) -> void:
 	if id.is_empty() or number < 1 or number > 4 or characters.has(id):
@@ -188,6 +98,11 @@ func _start_round() -> void:
 	satisfaction = 100
 	seconds_left = 180.0
 	sabotage_cooldown = 0.0
+	if customers == null:
+		customers = preload("res://scripts/customer_manager.gd").new()
+		world.add_child(customers)
+		world.move_child(customers, 0) # draw customers under the players
+	customers.start_shift(seconds_left)
 	var ids: Array = characters.keys()
 	if ids.is_empty():
 		return
@@ -201,8 +116,6 @@ func _start_round() -> void:
 		p.carried = ""
 		p.position = STARTS[p.player_number - 1]
 	NetworkManager.send_message({"type":"assign_roles", "roles":role_map})
-	lobby.visible = false
-	status_label.text = "Playing"
 	_announce("Round started! Make drinks. One player is the impostor.")
 
 func _process(delta: float) -> void:
@@ -251,6 +164,7 @@ func _interact(p) -> void:
 				_announce("P%d mixed a drink!" % p.player_number)
 		2:
 			if p.carried == "drink":
+				customers.serve(p.carried) # temporary until OrderManager (#30) handles serving
 				p.carried = ""
 				score += 1
 				satisfaction = mini(100, satisfaction + 4)
@@ -274,6 +188,7 @@ func _announce(message: String) -> void:
 
 func _finish_round() -> void:
 	phase = "finished"
+	customers.stop_shift()
 	var ending := "IMPOSTOR WINS" if satisfaction <= 0 else "BARISTAS WIN"
 	hud_label.text = "%s — %d drinks served. Restart Godot to create another room." % [ending, score]
 	NetworkManager.send_message({"type":"game_event", "event":ending})
